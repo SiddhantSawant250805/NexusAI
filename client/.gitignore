@@ -1,0 +1,68 @@
+# NexusAI: Client Security & Isolation Protocol
+
+# IDE Configuration
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build Artifacts
+dist/
+build/
+.cache/
+.parcel-cache/
+.turbo/
+
+# Environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Debugging & Monitoring
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.eslintcache
+
+# Multimedia & Binary
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+!src/assets/
+*.mp4
+*.webm
+
+# OS Specific
+.DS_Store
+Thumbs.db
+
+# NexusFIT OS Specific
+.nexus_cache/
+.calibration_logs/
+temp_scan/
+
+# Antigravity/Brain (Agent state)
+.gemini/
+.antigravity/
+brain/
+implementation_plan.md
+task.md
+walkthrough.md
+analysis_results.md
+research_notes.md
+experiment_results.md
+tmp/
