@@ -1,25 +1,42 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Trophy, Sword, Target, Zap, Shield, Flame, User, ChevronUp, ChevronDown } from "lucide-react";
+import { Trophy, Sword, Target, Zap, Shield, Flame, User, ChevronUp, ChevronDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
+import api from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
-const leaderboard = [
-  { rank: 1, name: "Vortex_Zero", level: 99, stats: [98, 97, 99], points: "125,430", drift: "up" },
-  { rank: 2, name: "Neo_Soldier", level: 85, stats: [92, 88, 94], points: "112,200", drift: "down" },
-  { rank: 3, name: "Agent_Nexus", level: 24, stats: [72, 58, 85], points: "2,450", drift: "up", isUser: true },
-  { rank: 4, name: "Cyborg_Fit", level: 42, stats: [65, 75, 70], points: "23,100", drift: "none" },
-  { rank: 5, name: "Glitch_King", level: 38, stats: [60, 62, 80], points: "18,950", drift: "up" },
-];
+interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  codename: string;
+  level: number;
+  syncPoints: number;
+  streak: number;
+  totalMissions: number;
+  attributes: {
+    strength: number;
+    agility: number;
+    endurance: number;
+  };
+  isCurrentUser: boolean;
+}
 
-function RankCard({ player, index }: { player: typeof leaderboard[0], index: number, key?: any }) {
+function RankCard({ player, index }: { player: LeaderboardEntry, index: number }) {
   const isTop1 = player.rank === 1;
+  const stats = [
+    player.attributes.strength,
+    player.attributes.agility,
+    player.attributes.endurance
+  ];
+
   return (
     <motion.div
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.1 }}
       className={`holographic-card rounded-xl p-5 mb-4 group cursor-pointer border relative overflow-hidden transition-all ${
-        player.isUser ? "border-primary/40 bg-primary/10 neon-glow-blue" : "border-border/50 hover:bg-white/5"
+        player.isCurrentUser ? "border-primary/40 bg-primary/10 neon-glow-blue" : "border-border/50 hover:bg-white/5"
       }`}
     >
       {isTop1 && (
@@ -29,25 +46,24 @@ function RankCard({ player, index }: { player: typeof leaderboard[0], index: num
       <div className="relative z-10 flex items-center gap-6">
         <div className="w-12 text-center">
           <div className={`font-display text-2xl font-black ${isTop1 ? "text-secondary neon-text-green animate-[glitch_2s_infinite]" : "text-foreground/40"}`}>
-            0{player.rank}
+            {player.rank < 10 ? `0${player.rank}` : player.rank}
           </div>
           <div className="flex justify-center mt-1">
-            {player.drift === "up" && <ChevronUp className="w-3 h-3 text-accent" />}
-            {player.drift === "down" && <ChevronDown className="w-3 h-3 text-destructive" />}
+            <ChevronUp className="w-3 h-3 text-accent" />
           </div>
         </div>
 
         <div className="flex-1 flex items-center gap-4">
           <div className="w-12 h-12 rounded-full bg-card border border-border/50 flex items-center justify-center relative overflow-hidden group-hover:border-primary/40 transition-colors">
             {isTop1 ? <Trophy className="w-6 h-6 text-secondary animate-bounce" /> : <User className="w-6 h-6 text-muted-foreground" />}
-            {player.isUser && <div className="absolute inset-0 bg-primary/10 animate-pulse" />}
+            {player.isCurrentUser && <div className="absolute inset-0 bg-primary/10 animate-pulse" />}
           </div>
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className={`font-display tracking-[0.2em] text-xs uppercase ${player.isUser ? "text-primary neon-text-blue" : "text-foreground"}`}>
-                {player.name}
+              <span className={`font-display tracking-[0.2em] text-xs uppercase ${player.isCurrentUser ? "text-primary neon-text-blue" : "text-foreground"}`}>
+                {player.codename}
               </span>
-              {player.isUser && <span className="text-[7px] bg-primary/20 text-primary px-1.5 py-0.5 rounded border border-primary/20">YOU</span>}
+              {player.isCurrentUser && <span className="text-[7px] bg-primary/20 text-primary px-1.5 py-0.5 rounded border border-primary/20">YOU</span>}
             </div>
             <div className="text-[8px] font-display tracking-widest text-muted-foreground uppercase">LEVEL_{player.level} // CLASS_OPERATOR</div>
           </div>
@@ -55,9 +71,9 @@ function RankCard({ player, index }: { player: typeof leaderboard[0], index: num
 
         <div className="hidden md:flex gap-6 items-center">
           <div className="grid grid-cols-3 gap-3 w-32">
-            {player.stats.map((s, i) => (
+            {stats.map((s, i) => (
               <div key={i} className="space-y-1">
-                <div className="h-0.5 w-full bg-white/5 rounded-full overflow-hidden">
+                <div className="h-0.5 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
                   <div className={`h-full ${isTop1 ? "bg-secondary" : "bg-primary"}`} style={{ width: `${s}%` }} />
                 </div>
                 <div className="text-[6px] font-display text-muted-foreground text-center">{s}%</div>
@@ -65,7 +81,7 @@ function RankCard({ player, index }: { player: typeof leaderboard[0], index: num
             ))}
           </div>
           <div className="text-right min-w-[100px]">
-            <div className="text-sm font-display tracking-wider text-foreground">{player.points}</div>
+            <div className="text-sm font-display tracking-wider text-foreground">{player.syncPoints.toLocaleString()}</div>
             <div className="text-[8px] font-display tracking-[0.3em] text-muted-foreground uppercase">SYNC_POINTS</div>
           </div>
         </div>
@@ -81,6 +97,34 @@ function RankCard({ player, index }: { player: typeof leaderboard[0], index: num
 }
 
 export default function Arena() {
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [activeStats, setActiveStats] = useState({ operators: 0 });
+  const [loading, setLoading] = useState(true);
+  const { profile } = useAuth();
+
+  useEffect(() => {
+    const fetchArenaData = async () => {
+      try {
+        const [lbRes, lobbyRes] = await Promise.all([
+          api.get('/arena/leaderboard'),
+          api.get('/arena/active-lobbies')
+        ]);
+
+        if (lbRes.data.success) {
+          setLeaderboard(lbRes.data.leaderboard);
+        }
+        if (lobbyRes.data.success) {
+          setActiveStats({ operators: lobbyRes.data.activeOperators });
+        }
+      } catch (err) {
+        console.error("Arena sync failed:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchArenaData();
+  }, []);
+
   return (
     <AppLayout>
       <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-8">
@@ -99,18 +143,18 @@ export default function Arena() {
               <h1 className="font-display text-4xl md:text-7xl font-black uppercase tracking-tight leading-none">
                 The_<span className="text-secondary neon-text-green">Arena</span>
               </h1>
-              <p className="text-sm md:text-base text-muted-foreground max-w-xl mx-auto mt-6 leading-relaxed">
+              <p className="text-sm md:text-base text-muted-foreground max-w-xl mx-auto mt-6 leading-relaxed uppercase">
                 Connect your bio-link to the global nexus. Compete with top-tier operators and claim your position in the elite hierarchy.
               </p>
             </motion.div>
 
             <div className="flex flex-wrap justify-center gap-6 pt-6">
               <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 px-12 py-8 font-display tracking-[0.3em] text-[10px] group relative overflow-hidden neon-glow-blue shadow-[0_0_20px_rgba(0,255,255,0.2)]">
-                <span className="relative z-10">INITIALIZE_MATCHMAKING</span>
+                <span className="relative z-10 uppercase">Initialize_Matchmaking</span>
                 <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
               </Button>
-              <Button size="lg" variant="outline" className="border-accent/20 text-accent hover:bg-accent/10 px-12 py-8 font-display tracking-[0.3em] text-[10px] backdrop-blur-sm">
-                JOIN_CLAN_PROTOCOL
+              <Button size="lg" variant="outline" className="border-accent/20 text-accent hover:bg-accent/10 px-12 py-8 font-display tracking-[0.3em] text-[10px] backdrop-blur-sm uppercase">
+                Join_Clan_Protocol
               </Button>
             </div>
           </div>
@@ -124,21 +168,32 @@ export default function Arena() {
                 <Trophy className="w-4 h-4 text-primary" /> Sector_Rankings
               </h3>
               <div className="text-[8px] font-display tracking-widest text-muted-foreground uppercase flex items-center gap-2">
-                <div className="w-1 h-1 bg-accent rounded-full animate-pulse" /> Live_Syncing...
+                <div className="w-1 h-1 bg-accent rounded-full animate-pulse" /> {loading ? "Syncing_Neural_Net..." : "Live_Syncing..."}
               </div>
             </div>
 
-            <div className="space-y-4">
-              {leaderboard.map((p, i) => (
-                <RankCard key={p.name} player={p} index={i} />
-              ))}
-            </div>
+            {loading ? (
+              <div className="py-20 flex flex-col items-center gap-4">
+                <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                <span className="text-[10px] font-display tracking-[0.4em] text-muted-foreground uppercase animate-pulse">Downloading_Sector_Data...</span>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <AnimatePresence>
+                  {leaderboard.map((p, i) => (
+                    <RankCard key={p.userId} player={p} index={i} />
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
             
-            <div className="text-center pt-4">
-              <Button variant="ghost" className="text-[10px] font-display tracking-[0.5em] text-muted-foreground hover:text-primary transition-colors">
-                LOAD_NEXT_SECTOR_Ranks // 05-10
-              </Button>
-            </div>
+            {!loading && (
+              <div className="text-center pt-4">
+                <Button variant="ghost" className="text-[10px] font-display tracking-[0.5em] text-muted-foreground hover:text-primary transition-colors uppercase">
+                  Load_Next_Sector_Ranks // 05-10
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* Side Module: Combat Readiness */}
@@ -156,16 +211,16 @@ export default function Arena() {
               
               <div className="space-y-10">
                 {[
-                  { label: "Weaponry_Level", val: 88, color: "bg-primary" },
-                  { label: "Defensive_Matrix", val: 74, color: "bg-accent" },
-                  { label: "Neural_Drift", val: 92, color: "bg-primary" },
+                  { label: "Strength_Index", val: profile?.attributes.strength || 0, color: "bg-primary" },
+                  { label: "Agility_Index", val: profile?.attributes.agility || 0, color: "bg-accent" },
+                  { label: "Endurance_Matrix", val: profile?.attributes.endurance || 0, color: "bg-primary" },
                 ].map(r => (
                   <div key={r.label} className="group cursor-crosshair">
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-[8px] font-display tracking-widest text-muted-foreground group-hover:text-foreground transition-colors uppercase">{r.label}</span>
                       <span className="text-[10px] font-display text-primary">{r.val}/100</span>
                     </div>
-                    <div className="h-1 bg-white/5 rounded-full overflow-hidden relative">
+                    <div className="h-1 bg-white/5 rounded-full overflow-hidden relative border border-white/5">
                       <motion.div 
                         initial={{ width: 0 }} 
                         animate={{ width: `${r.val}%` }} 
@@ -179,10 +234,10 @@ export default function Arena() {
               </div>
 
               <div className="mt-12 p-5 rounded-xl bg-primary/5 border border-primary/20 text-center">
-                <div className="text-[8px] font-display tracking-[0.3em] text-primary/60 mb-2 uppercase">Current_Win_Streak</div>
+                <div className="text-[8px] font-display tracking-[0.3em] text-primary/60 mb-2 uppercase">Current_Mission_Streak</div>
                 <div className="text-3xl font-display text-primary flex items-center justify-center gap-3">
                   <Flame className="w-5 h-5 text-accent animate-bounce" />
-                  12_CYCLES
+                  {profile?.streak || 0}_CYCLES
                 </div>
               </div>
             </motion.div>
@@ -201,7 +256,9 @@ export default function Arena() {
                   />
                 ))}
               </div>
-              <div className="text-xs font-display tracking-widest text-foreground">412_OPERATORS_READY</div>
+              <div className="text-xs font-display tracking-widest text-foreground uppercase">
+                {activeStats.operators}_OPERATORS_READY
+              </div>
             </div>
           </div>
         </div>

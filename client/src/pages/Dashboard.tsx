@@ -1,22 +1,12 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Zap, Flame, Shield, Wind, Target, TrendingUp, Calendar, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import api from "@/lib/api";
 
-const stats = [
-  { label: "Strength", value: 72, icon: Shield, color: "text-primary" },
-  { label: "Agility", value: 58, icon: Wind, color: "text-accent" },
-  { label: "Endurance", value: 85, icon: Flame, color: "text-orange-500" },
-  { label: "Accuracy", value: 91, icon: Target, color: "text-primary" },
-];
-
-const recentWorkouts = [
-  { name: "Upper Body Assault", time: "45 min", cal: 420, date: "Today" },
-  { name: "HIIT Circuit Alpha", time: "32 min", cal: 380, date: "Yesterday" },
-  { name: "Leg Day Protocol", time: "55 min", cal: 510, date: "2 days ago" },
-];
-
-function StatBar({ label, value, icon: Icon, color }: typeof stats[0]) {
+function StatBar({ label, value, icon: Icon, color }: { label: string; value: number; icon: any; color: string }) {
   return (
     <div className="flex items-center gap-4 group">
       <div className={`w-8 h-8 rounded-lg bg-card/50 flex items-center justify-center border border-border/50 group-hover:border-primary/40 transition-colors`}>
@@ -41,6 +31,30 @@ function StatBar({ label, value, icon: Icon, color }: typeof stats[0]) {
 }
 
 export default function Dashboard() {
+  const { user, profile } = useAuth();
+  const [recentMissions, setRecentMissions] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchRecent = async () => {
+      try {
+        const response = await api.get('/workouts?limit=3');
+        if (response.data.success) {
+          setRecentMissions(response.data.sessions);
+        }
+      } catch (err) {
+        console.error("Failed to fetch recent missions:", err);
+      }
+    };
+    fetchRecent();
+  }, []);
+
+  const stats = [
+    { label: "Strength", value: profile?.attributes?.strength || 0, icon: Shield, color: "text-primary" },
+    { label: "Agility", value: profile?.attributes?.agility || 0, icon: Wind, color: "text-accent" },
+    { label: "Endurance", value: profile?.attributes?.endurance || 0, icon: Flame, color: "text-orange-500" },
+    { label: "Accuracy", value: profile?.attributes?.accuracy || 0, icon: Target, color: "text-primary" },
+  ];
+
   return (
     <AppLayout>
       <div className="p-6 md:p-10 space-y-8 max-w-7xl mx-auto">
@@ -79,26 +93,28 @@ export default function Dashboard() {
           >
             <div className="flex items-start justify-between mb-10">
               <div>
-                <h2 className="font-display text-xl tracking-[0.2em] mb-2 uppercase">Subject: Agent_Nexus</h2>
-                <p className="text-xs text-muted-foreground font-body">Rank: Elite Operator | Level 24 | Clearance Level 4</p>
+                <h2 className="font-display text-xl tracking-[0.2em] mb-2 uppercase">Subject: {user?.codename || "AGENT_NEXUS"}</h2>
+                <p className="text-xs text-muted-foreground font-body uppercase tracking-wider">
+                  Rank: {profile?.experience || "RECRUIT"} | Level {profile?.level || 1} | Profile_Verified
+                </p>
               </div>
               <div className="bg-primary/10 rounded-xl px-4 py-3 border border-primary/20 text-center min-w-[100px]">
-                <div className="text-[10px] font-display tracking-widest text-primary/60 mb-1">XP_TOKEN</div>
-                <div className="text-xl font-display text-primary">2,450</div>
+                <div className="text-[10px] font-display tracking-widest text-primary/60 mb-1 uppercase">XP_TOKEN</div>
+                <div className="text-xl font-display text-primary">{profile?.xp || 0}</div>
               </div>
             </div>
 
             {/* XP Bar Evolution */}
             <div className="mb-10 relative">
-              <div className="flex justify-between text-[8px] font-display tracking-widest mb-2 text-muted-foreground">
-                <span>LVL 24</span>
-                <span className="text-primary">82% TO LVL 25</span>
-                <span>LVL 25</span>
+              <div className="flex justify-between text-[8px] font-display tracking-widest mb-2 text-muted-foreground uppercase">
+                <span>LVL {profile?.level || 1}</span>
+                <span className="text-primary">{Math.floor(((profile?.xp || 0) / (profile?.xpToNextLevel || 1000)) * 100)}% TO NEXT_LEVEL</span>
+                <span>LVL {(profile?.level || 1) + 1}</span>
               </div>
               <div className="h-4 rounded-full bg-primary/5 p-1 border border-primary/10 overflow-hidden group">
                 <motion.div
                   initial={{ width: 0 }}
-                  animate={{ width: "82%" }}
+                  animate={{ width: `${((profile?.xp || 0) / (profile?.xpToNextLevel || 1000)) * 100}%` }}
                   transition={{ duration: 2, ease: [0.16, 1, 0.3, 1] }}
                   className="h-full rounded-full bg-gradient-to-r from-primary via-accent to-primary animate-glow-pulse relative overflow-hidden"
                 >
@@ -137,7 +153,7 @@ export default function Dashboard() {
             </div>
             
             <h3 className="font-display tracking-[0.3em] text-xs mb-2 uppercase text-foreground">Biometric_Avatar</h3>
-            <p className="text-[10px] text-muted-foreground font-body max-w-[200px]">Neural link initializing... 3D projection offline.</p>
+            <p className="text-[10px] text-muted-foreground font-body max-w-[200px] uppercase">Neural link established. Operator: {user?.codename || "UNKNOWN"}</p>
             <Button variant="ghost" size="sm" className="mt-6 text-[8px] font-display tracking-widest text-primary hover:bg-primary/5 border border-primary/10">
               REBOOT_LINK
             </Button>
@@ -147,10 +163,10 @@ export default function Dashboard() {
         {/* Tactical Modules Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           {[
-            { icon: Flame, label: "Streak_Count", value: "12_Days", accent: true },
-            { icon: TrendingUp, label: "Neural_Cycles", value: "4_Sessions" },
-            { icon: Calendar, label: "Total_Missions", value: "186_Units" },
-            { icon: Clock, label: "Uptime_Avg", value: "42_Mins" },
+            { icon: Flame, label: "Streak_Count", value: `${profile?.streak || 0}_Days`, accent: true },
+            { icon: TrendingUp, label: "Mission_Sync", value: `SYNC_OK` },
+            { icon: Calendar, label: "Total_Missions", value: `${profile?.totalMissions || 0}_Units` },
+            { icon: Clock, label: "Uptime_Avg", value: `${profile?.avgSessionMins || 0}_Mins` },
           ].map((item, i) => (
             <motion.div
               key={item.label}
@@ -162,7 +178,7 @@ export default function Dashboard() {
               <div className={`p-2 rounded-lg inline-block mb-4 ${item.accent ? "bg-accent/10 border border-accent/20" : "bg-primary/10 border border-primary/20"}`}>
                 <item.icon className={`w-5 h-5 ${item.accent ? "text-accent" : "text-primary"}`} />
               </div>
-              <div className="text-xl font-display tracking-wider mb-1">{item.value}</div>
+              <div className="text-xl font-display tracking-wider mb-1 uppercase">{item.value}</div>
               <div className="text-[9px] font-display tracking-[0.2em] text-muted-foreground uppercase group-hover:text-primary transition-colors">{item.label}</div>
             </motion.div>
           ))}
@@ -177,23 +193,31 @@ export default function Dashboard() {
         >
           <div className="flex items-center justify-between mb-8">
             <h3 className="font-display text-sm tracking-[0.3em] uppercase">Tactical_Mission_Logs</h3>
-            <span className="text-[10px] font-display text-muted-foreground tracking-widest">ACCESSING_ENCRYPTED_DATA...</span>
+            <span className="text-[10px] font-display text-muted-foreground tracking-widest uppercase">
+              {recentMissions.length > 0 ? "ACCESS_GRANTED" : "NO_MISSIONS_DETECTED"}
+            </span>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
-            {recentWorkouts.map((w, i) => (
-              <div key={w.name} className="flex flex-col p-5 rounded-xl bg-primary/5 border border-primary/10 hover:border-primary/30 transition-all group relative overflow-hidden">
+            {recentMissions.map((w, i) => (
+              <div key={w._id} className="flex flex-col p-5 rounded-xl bg-primary/5 border border-primary/10 hover:border-primary/30 transition-all group relative overflow-hidden">
                 <div className="relative z-10">
-                  <div className="text-xs font-display tracking-widest text-primary/60 mb-2">OP_ID: 0{i+1}</div>
-                  <div className="text-sm font-display tracking-widest mb-3 group-hover:text-primary transition-colors">{w.name.toUpperCase()}</div>
+                  <div className="text-xs font-display tracking-widest text-primary/60 mb-2 uppercase">OP_ID: {w._id.slice(-4)}</div>
+                  <div className="text-sm font-display tracking-widest mb-3 group-hover:text-primary transition-colors uppercase">{w.name}</div>
                   <div className="flex justify-between items-end mt-auto">
-                    <div className="text-[10px] text-muted-foreground font-body">{w.date} // {w.time}</div>
-                    <div className="text-xs font-display text-accent neon-text-green">{w.cal} KCAL</div>
+                    <div className="text-[10px] text-muted-foreground font-body uppercase">
+                      {new Date(w.sessionDate).toLocaleDateString()} // {w.durationMins} MINS
+                    </div>
+                    <div className="text-xs font-display text-accent neon-text-green uppercase">{w.caloriesBurned} KCAL</div>
                   </div>
                 </div>
-                {/* Background "Scan" line effect for card on hover */}
                 <div className="absolute inset-0 bg-primary/5 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-500 pointer-events-none" />
               </div>
             ))}
+            {recentMissions.length === 0 && (
+              <div className="col-span-3 py-10 text-center opacity-30 font-display text-[10px] tracking-widest uppercase border border-dashed border-primary/20 rounded-xl">
+                Ready operator. No mission data currently archived.
+              </div>
+            )}
           </div>
         </motion.div>
       </div>

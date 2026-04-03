@@ -8,15 +8,8 @@ const rateLimit = require('express-rate-limit');
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 
-// Route imports
-const authRoutes      = require('./routes/auth.routes');
-const profileRoutes   = require('./routes/profile.routes');
-const workoutRoutes   = require('./routes/workout.routes');
-const nutritionRoutes = require('./routes/nutrition.routes');
-const progressRoutes  = require('./routes/progress.routes');
-const arenaRoutes     = require('./routes/arena.routes');
-const vaultRoutes     = require('./routes/vault.routes');
-const mlRoutes        = require('./routes/ml.routes');
+// Route imports are now handled directly in app.use()
+const mlRoutes = require('./routes/ml.routes');
 
 // ─── Connect to MongoDB ───────────────────────────────────────────────────────
 connectDB();
@@ -64,13 +57,14 @@ app.get('/api/health', (req, res) => {
 });
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
-app.use('/api/v1/auth',      authRoutes);
-app.use('/api/v1/profile',   profileRoutes);
-app.use('/api/v1/workouts',  workoutRoutes);
-app.use('/api/v1/nutrition', nutritionRoutes);
-app.use('/api/v1/progress',  progressRoutes);
-app.use('/api/v1/arena',     arenaRoutes);
-app.use('/api/v1/vault',     vaultRoutes);
+app.use('/api/v1/auth', require('./routes/auth.routes'));
+app.use('/api/v1/profile', require('./routes/profile.routes'));
+app.use('/api/v1/workouts', require('./routes/workout.routes'));
+app.use('/api/v1/templates', require('./routes/template.routes'));
+app.use('/api/v1/progress', require('./routes/progress.routes'));
+app.use('/api/v1/nutrition', require('./routes/nutrition.routes'));
+app.use('/api/v1/arena', require('./routes/arena.routes'));
+app.use('/api/v1/vault', require('./routes/vault.routes'));
 
 // ─── ML Service Proxy ────────────────────────────────────────────────────────
 // Proxies /api/ml/* → ML_SERVICE_URL/*  (requires JWT)

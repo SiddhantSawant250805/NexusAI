@@ -1,21 +1,116 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Apple, Coffee, ChefHat, Activity, Target, Zap, Clock, Shield, Search, Camera } from "lucide-react";
+import { Apple, Coffee, ChefHat, Activity, Target, Zap, Clock, Shield, Search, Camera, Loader2, Plus, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
+import api from "@/lib/api";
+import { toast } from "sonner";
 
-const nutritionData = [
-  { label: "Protein_Synthesize", val: 185, goal: 200, unit: "G", color: "bg-primary" },
-  { label: "Carb_Fuel", val: 240, goal: 300, unit: "G", color: "bg-accent" },
-  { label: "Lipid_Balance", val: 65, goal: 80, unit: "G", color: "bg-orange-500" },
-];
+interface Meal {
+  _id: string;
+  name: string;
+  cals: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  time: string;
+  type: string;
+}
 
-const meals = [
-  { id: 1, name: "Molecular_Protein_Bowl", cals: 450, macros: "45P / 35C / 12F", time: "08:30 AM", type: "BREAKFAST" },
-  { id: 2, name: "Neural_Synthesis_Shake", cals: 320, macros: "30P / 15C / 5F", time: "11:45 AM", type: "PRE_MISSION" },
-  { id: 3, name: "Hypertrophy_Fuel_Grid", cals: 680, macros: "55P / 60C / 18F", time: "02:15 PM", type: "POST_MISSION" },
-];
+interface NutritionLog {
+  meals: Meal[];
+  calorieGoal: number;
+  hydrationL: number;
+  hydrationGoalL: number;
+}
 
 export default function Nutrition() {
+  const [log, setLog] = useState<NutritionLog | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+
+  const fetchTodayLog = async () => {
+    try {
+      const response = await api.get('/nutrition/today');
+      if (response.data.success) {
+        setLog(response.data.log);
+      }
+    } catch (err) {
+      console.error("Failed to fetch nutrition log:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTodayLog();
+  }, []);
+
+  const totalCals = log?.meals.reduce((sum, m) => sum + m.cals, 0) || 0;
+  const totalProtein = log?.meals.reduce((sum, m) => sum + (m.protein || 0), 0) || 0;
+  const totalCarbs = log?.meals.reduce((sum, m) => sum + (m.carbs || 0), 0) || 0;
+  const totalFat = log?.meals.reduce((sum, m) => sum + (m.fat || 0), 0) || 0;
+
+  const nutritionStats = [
+    { label: "Protein_Synthesize", val: totalProtein, goal: 200, unit: "G", color: "bg-primary" },
+    { label: "Carb_Fuel", val: totalCarbs, goal: 300, unit: "G", color: "bg-accent" },
+    { label: "Lipid_Balance", val: totalFat, goal: 80, unit: "G", color: "bg-orange-500" },
+  ];
+
+  const handleAddMeal = async () => {
+    setSyncing(true);
+    const mockMeal = {
+      name: "Molecular_Protein_Bowl",
+      cals: 450,
+      protein: 45,
+      carbs: 35,
+      fat: 12,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      type: "BREAKFAST"
+    };
+
+    try {
+      const response = await api.post('/nutrition/meal', mockMeal);
+      if (response.data.success) {
+        setLog(response.data.log);
+        toast.success("FUEL_LOG_ARCHIVED", {
+          description: "Nutritional batch successfully integrated into bio-profile."
+        });
+      }
+    } catch (err) {
+      toast.error("SYNC_ERROR", {
+        description: "Failed to upload nutritional telemetry."
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const updateHydration = async (change: number) => {
+    if (!log) return;
+    const newLevel = Math.max(0, Math.min(log.hydrationGoalL, (log.hydrationL || 0) + change));
+    
+    try {
+      const response = await api.patch('/nutrition/hydration', { hydrationL: newLevel });
+      if (response.data.success) {
+        setLog(response.data.log);
+      }
+    } catch (err) {
+      toast.error("HYDRATION_SYNC_FAILED");
+    }
+  };
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="h-[80vh] flex flex-col items-center justify-center gap-4">
+          <Loader2 className="w-10 h-10 text-primary animate-spin" />
+          <p className="text-[10px] font-display tracking-[0.4em] text-muted-foreground uppercase animate-pulse">Scanning_Bio_Input_Vault...</p>
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout>
       <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-8">
@@ -41,16 +136,16 @@ export default function Nutrition() {
             <div className="flex items-start justify-between mb-10">
               <div>
                 <h3 className="font-display text-xl tracking-[0.2em] mb-2 uppercase">Fuel_Reserves</h3>
-                <p className="text-[10px] text-muted-foreground font-body">Current daily intake cycle: 72% OPTIMAL</p>
+                <p className="text-[10px] text-muted-foreground font-body">Current daily intake cycle: {Math.floor((totalCals / (log?.calorieGoal || 2400)) * 100)}% OPTIMAL</p>
               </div>
               <div className="text-right">
-                <div className="text-3xl font-display text-foreground tracking-tight">1,895 / 2,400</div>
+                <div className="text-3xl font-display text-foreground tracking-tight">{totalCals} / {log?.calorieGoal || 2400}</div>
                 <div className="text-[10px] font-display tracking-widest text-primary/60 uppercase">TOTAL_KCAL_INVENTORY</div>
               </div>
             </div>
 
             <div className="grid gap-8 flex-1">
-              {nutritionData.map((d, i) => (
+              {nutritionStats.map((d, i) => (
                 <div key={d.label} className="group cursor-crosshair">
                   <div className="flex justify-between items-end mb-3">
                     <div>
@@ -67,7 +162,7 @@ export default function Nutrition() {
                   <div className="h-2 bg-white/5 rounded-full overflow-hidden relative border border-white/5">
                     <motion.div
                       initial={{ width: 0 }}
-                      animate={{ width: `${(d.val / d.goal) * 100}%` }}
+                      animate={{ width: `${Math.min((d.val / d.goal) * 100, 100)}%` }}
                       transition={{ duration: 1.5, ease: "easeOut", delay: 0.3 + i * 0.1 }}
                       className={`h-full ${d.color} relative overflow-hidden`}
                     >
@@ -80,9 +175,13 @@ export default function Nutrition() {
             </div>
 
             <div className="mt-10 flex gap-4">
-              <Button className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 py-8 font-display tracking-[0.2em] text-[10px] group relative overflow-hidden neon-glow-blue">
+              <Button 
+                onClick={handleAddMeal}
+                disabled={syncing}
+                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 py-8 font-display tracking-[0.2em] text-[10px] group relative overflow-hidden neon-glow-blue"
+              >
                 <span className="relative z-10 flex items-center justify-center gap-2">
-                  LOG_FUEL_BATCH <Zap className="w-3 h-3" />
+                  {syncing ? "ARCHIVING..." : "LOG_FUEL_BATCH"} <Zap className="w-3 h-3" />
                 </span>
                 <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
               </Button>
@@ -100,7 +199,6 @@ export default function Nutrition() {
               transition={{ delay: 0.2 }}
               className="holographic-card rounded-2xl p-8 hud-border text-center relative overflow-hidden group cursor-pointer"
             >
-              {/* Animated scan lines */}
               <div className="absolute inset-0 pointer-events-none opacity-[0.2] overflow-hidden">
                 <div className="w-full h-px bg-primary absolute top-0 animate-scan-line" />
                 <div className="w-px h-full bg-primary absolute left-0 animate-scan-line-horizontal" />
@@ -111,7 +209,7 @@ export default function Nutrition() {
                   <Camera className="w-8 h-8 text-primary animate-pulse" />
                 </div>
                 <h3 className="font-display text-sm tracking-[0.3em] uppercase mb-2">Bio_Aperio_Scanner</h3>
-                <p className="text-[10px] text-muted-foreground font-body max-w-[180px] mx-auto leading-relaxed">Point optical sensor at nutrition batch for real-time molecular analysis.</p>
+                <p className="text-[10px] text-muted-foreground font-body max-w-[180px] mx-auto leading-relaxed uppercase">Point optical sensor at nutrition batch for real-time molecular analysis.</p>
                 <div className="mt-8 pt-6 border-t border-border/30 flex justify-between px-4">
                   <div className="text-center">
                     <div className="text-xs font-display text-primary">0.4s</div>
@@ -134,22 +232,35 @@ export default function Nutrition() {
             >
               <div className="flex items-center justify-between mb-8">
                 <h3 className="font-display text-[10px] tracking-[0.3em] uppercase">Hydration_Matrix</h3>
-                <span className="text-[10px] font-display text-primary">2.4 / 3.0 L</span>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="icon" onClick={() => updateHydration(-0.25)} className="w-6 h-6 rounded-full border border-white/10">
+                    <Minus className="w-3 h-3" />
+                  </Button>
+                  <span className="text-[10px] font-display text-primary w-20 text-center uppercase">{(log?.hydrationL || 0).toFixed(2)} / {log?.hydrationGoalL || 3.0} L</span>
+                  <Button variant="ghost" size="icon" onClick={() => updateHydration(0.25)} className="w-6 h-6 rounded-full border border-white/10">
+                    <Plus className="w-3 h-3" />
+                  </Button>
+                </div>
               </div>
               <div className="flex gap-2">
-                {Array.from({ length: 10 }).map((_, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ height: 4 }}
-                    animate={{ height: i < 8 ? 40 : 4 }}
-                    className={`flex-1 rounded-full transition-all ${i < 8 ? "bg-primary shadow-[0_0_10px_hsl(var(--primary))]" : "bg-white/5"}`}
-                    transition={{ delay: i * 0.05, type: "spring", stiffness: 100 }}
-                  />
-                ))}
+                {Array.from({ length: 10 }).map((_, i) => {
+                  const level = ((log?.hydrationL || 0) / (log?.hydrationGoalL || 3.0)) * 10;
+                  return (
+                    <motion.div
+                      key={i}
+                      initial={{ height: 4 }}
+                      animate={{ height: i < level ? 40 : 4 }}
+                      className={`flex-1 rounded-full transition-all ${i < level ? "bg-primary shadow-[0_0_10px_hsl(var(--primary))]" : "bg-white/5"}`}
+                      transition={{ type: "spring", stiffness: 100 }}
+                    />
+                  );
+                })}
               </div>
               <div className="mt-6 flex justify-between items-center bg-primary/5 p-4 rounded-xl border border-primary/10">
                 <div className="text-[8px] font-display tracking-[0.3em] text-primary/60 uppercase">System_Fluidity</div>
-                <div className="text-xs font-display text-primary uppercase">OPTIMAL</div>
+                <div className="text-xs font-display text-primary uppercase">
+                  {(log?.hydrationL || 0) >= (log?.hydrationGoalL || 3.0) ? "SATUATED" : "OPTIMAL"}
+                </div>
               </div>
             </motion.div>
           </div>
@@ -184,22 +295,36 @@ export default function Nutrition() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/30">
-                {meals.map((m, i) => (
-                  <tr key={m.id} className="group hover:bg-white/5 transition-colors">
-                    <td className="py-5 text-[10px] font-display text-muted-foreground group-hover:text-primary transition-colors">{m.time} // {m.type}</td>
-                    <td className="py-5 text-[12px] font-display tracking-widest text-foreground">{m.name.toUpperCase()}</td>
-                    <td className="py-5">
-                      <div className="text-[10px] font-display text-muted-foreground uppercase">{m.macros}</div>
+                <AnimatePresence>
+                  {log?.meals.map((m, i) => (
+                    <motion.tr 
+                      key={m._id} 
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="group hover:bg-white/5 transition-colors"
+                    >
+                      <td className="py-5 text-[10px] font-display text-muted-foreground group-hover:text-primary transition-colors uppercase">{m.time} // {m.type}</td>
+                      <td className="py-5 text-[12px] font-display tracking-widest text-foreground uppercase">{m.name}</td>
+                      <td className="py-5">
+                        <div className="text-[10px] font-display text-muted-foreground uppercase">{m.protein}P / {m.carbs}C / {m.fat}F</div>
+                      </td>
+                      <td className="py-5">
+                        <div className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+                          <span className="text-[10px] font-display tracking-widest text-accent uppercase">HIGH</span>
+                        </div>
+                      </td>
+                      <td className="py-5 text-right font-display text-primary neon-text-blue">{m.cals} UNITS</td>
+                    </motion.tr>
+                  ))}
+                </AnimatePresence>
+                {(!log?.meals || log.meals.length === 0) && (
+                  <tr>
+                    <td colSpan={5} className="py-10 text-center text-[10px] font-display tracking-[0.4em] text-muted-foreground uppercase">
+                      No_Fuel_Data_Detected_For_Current_Cycle
                     </td>
-                    <td className="py-5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-accent" />
-                        <span className="text-[10px] font-display tracking-widest text-accent">HIGH</span>
-                      </div>
-                    </td>
-                    <td className="py-5 text-right font-display text-primary neon-text-blue">{m.cals} UNITS</td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>

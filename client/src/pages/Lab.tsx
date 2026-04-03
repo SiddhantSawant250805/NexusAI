@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, ChevronLeft, Zap, Target, Dumbbell, Apple, Ruler, Activity } from "lucide-react";
+import { ChevronRight, ChevronLeft, Zap, Target, Dumbbell, Apple, Ruler, Activity, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/contexts/AuthContext";
+import api from "@/lib/api";
+import { toast } from "sonner";
 
 interface StepProps {
   onNext: () => void;
@@ -15,7 +18,7 @@ const equipment = ["Full Gym", "Dumbbells Only", "Bodyweight", "Resistance Bands
 const allergies = ["None", "Gluten", "Dairy", "Nuts", "Shellfish", "Soy", "Eggs"];
 const experience = ["Beginner", "Intermediate", "Advanced", "Elite"];
 
-function StepBiometrics({ onNext }: StepProps) {
+function StepBiometrics({ onNext, data, updateData }: StepProps & { data: any, updateData: (d: any) => void }) {
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-4 mb-8">
@@ -29,18 +32,28 @@ function StepBiometrics({ onNext }: StepProps) {
       </div>
       <div className="grid grid-cols-2 gap-6">
         {[
-          { label: "Height", unit: "CM", val: "178" },
-          { label: "Weight", unit: "KG", val: "82" },
-          { label: "Age", unit: "YR", val: "28" },
-          { label: "Body_Fat", unit: "%", val: "18" },
+          { key: "height", label: "Height", unit: "CM", type: "number" },
+          { key: "weight", label: "Weight", unit: "KG", type: "number" },
+          { key: "age", label: "Age", unit: "YR", type: "number" },
+          { key: "bodyFat", label: "Body_Fat", unit: "%", type: "number" },
         ].map(i => (
-          <div key={i.label} className="group">
+          <div key={i.key} className="group">
             <label className="text-[10px] font-display tracking-widest text-muted-foreground mb-2 block group-hover:text-primary transition-colors">{i.label} // {i.unit}</label>
-            <Input defaultValue={i.val} className="bg-primary/5 border-primary/20 focus:border-primary focus:ring-1 focus:ring-primary/30 font-display tracking-wider text-sm h-12" />
+            <Input 
+              type={i.type}
+              value={data[i.key] || ''}
+              onChange={e => updateData({ [i.key]: Number(e.target.value) })}
+              placeholder={`Enter ${i.label}`}
+              className="bg-primary/5 border-primary/20 focus:border-primary focus:ring-1 focus:ring-primary/30 font-display tracking-wider text-sm h-12" 
+            />
           </div>
         ))}
       </div>
-      <Button onClick={onNext} className="w-full font-display tracking-[0.2em] text-xs bg-primary text-primary-foreground py-8 group relative overflow-hidden neon-glow-blue">
+      <Button 
+        onClick={onNext} 
+        disabled={!data.height || !data.weight || !data.age}
+        className="w-full font-display tracking-[0.2em] text-xs bg-primary text-primary-foreground py-8 group relative overflow-hidden neon-glow-blue disabled:opacity-50"
+      >
         <span className="relative z-10 flex items-center justify-center gap-2">
           CONTINUE_CALIBRATION <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
         </span>
@@ -50,9 +63,14 @@ function StepBiometrics({ onNext }: StepProps) {
   );
 }
 
-function StepSelection({ onNext, onPrev, title, icon: Icon, items, subtitle }: StepProps & { title: string; icon: any; items: string[]; subtitle: string }) {
-  const [selected, setSelected] = useState<string[]>([]);
-  const toggle = (item: string) => setSelected(prev => prev.includes(item) ? prev.filter(i => i !== item) : [...prev, item]);
+function StepSelection({ onNext, onPrev, title, icon: Icon, items, subtitle, selected, updateData }: StepProps & { title: string; icon: any; items: string[]; subtitle: string; selected: string[], updateData: (sel: string[]) => void }) {
+  const toggle = (item: string) => {
+    if (selected.includes(item)) {
+      updateData(selected.filter(i => i !== item));
+    } else {
+      updateData([...selected, item]);
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -87,12 +105,12 @@ function StepSelection({ onNext, onPrev, title, icon: Icon, items, subtitle }: S
         ))}
       </div>
       <div className="flex gap-4">
-        <Button variant="outline" onClick={onPrev} className="flex-1 font-display tracking-[0.2em] text-[10px] border-primary/20 py-8 hover:bg-primary/5">
-          <ChevronLeft className="w-3 h-3 mr-2" /> PREVIOUS_STEP
+        <Button variant="outline" onClick={onPrev} className="flex-1 font-display tracking-[0.2em] text-[10px] border-primary/20 py-8 hover:bg-primary/5 uppercase">
+          <ChevronLeft className="w-3 h-3 mr-2" /> Previous_Step
         </Button>
-        <Button onClick={onNext} className="flex-1 font-display tracking-[0.2em] text-[10px] bg-primary text-primary-foreground py-8 group relative overflow-hidden neon-glow-blue">
+        <Button disabled={selected.length === 0} onClick={onNext} className="flex-1 font-display tracking-[0.2em] text-[10px] bg-primary text-primary-foreground py-8 group relative overflow-hidden neon-glow-blue uppercase disabled:opacity-50">
           <span className="relative z-10 flex items-center justify-center gap-2">
-            NEXT_LOGIC <ChevronRight className="w-3 h-3 ml-2 group-hover:translate-x-1 transition-transform" />
+            Next_Logic <ChevronRight className="w-3 h-3 ml-2 group-hover:translate-x-1 transition-transform" />
           </span>
         </Button>
       </div>
@@ -100,8 +118,7 @@ function StepSelection({ onNext, onPrev, title, icon: Icon, items, subtitle }: S
   );
 }
 
-function StepExperience({ onNext, onPrev }: StepProps) {
-  const [selected, setSelected] = useState("");
+function StepExperience({ onNext, onPrev, selected, updateData, isSubmitting }: StepProps & { selected: string, updateData: (val: string) => void, isSubmitting: boolean }) {
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-4 mb-8">
@@ -110,14 +127,14 @@ function StepExperience({ onNext, onPrev }: StepProps) {
         </div>
         <div>
           <h3 className="font-display text-lg tracking-[0.2em] uppercase">Evolution_Protocol</h3>
-          <p className="text-[10px] text-muted-foreground font-display tracking-widest">DEFINE_ADAPTIVE_DIFFICULTY</p>
+          <p className="text-[10px] text-muted-foreground font-display tracking-widest uppercase">Define_Adaptive_Difficulty</p>
         </div>
       </div>
       <div className="space-y-4">
         {experience.map(level => (
           <button
             key={level}
-            onClick={() => setSelected(level)}
+            onClick={() => updateData(level)}
             className={`w-full p-5 rounded-xl text-left font-display tracking-[0.1em] text-xs transition-all relative overflow-hidden group border ${
               selected === level
                 ? "bg-accent/20 text-accent border-accent/50 neon-glow-green"
@@ -132,12 +149,17 @@ function StepExperience({ onNext, onPrev }: StepProps) {
         ))}
       </div>
       <div className="flex gap-4">
-        <Button variant="outline" onClick={onPrev} className="flex-1 font-display tracking-[0.2em] text-[10px] border-accent/20 py-8 hover:bg-accent/5">
-          <ChevronLeft className="w-3 h-3 mr-2" /> PREVIOUS
+        <Button variant="outline" onClick={onPrev} disabled={isSubmitting} className="flex-1 font-display tracking-[0.2em] text-[10px] border-accent/20 py-8 hover:bg-accent/5 uppercase">
+          <ChevronLeft className="w-3 h-3 mr-2" /> Previous
         </Button>
-        <Button onClick={onNext} className="flex-1 font-display tracking-[0.2em] text-[10px] bg-accent text-accent-foreground py-8 group relative overflow-hidden neon-glow-green">
+        <Button 
+          onClick={onNext} 
+          disabled={!selected || isSubmitting} 
+          className="flex-1 font-display tracking-[0.2em] text-[10px] bg-accent text-accent-foreground py-8 group relative overflow-hidden neon-glow-green uppercase disabled:opacity-50"
+        >
           <span className="relative z-10 flex items-center justify-center gap-2">
-            COMPLETE_CALIBRATION <Zap className="w-3 h-3 ml-1" />
+            {isSubmitting ? "CALIBRATING..." : "COMPLETE_CALIBRATION"} 
+            {isSubmitting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3 ml-1" />}
           </span>
         </Button>
       </div>
@@ -147,12 +169,62 @@ function StepExperience({ onNext, onPrev }: StepProps) {
 
 export default function Lab() {
   const [step, setStep] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
+  const { profile, refreshProfile } = useAuth();
+
+  const [formData, setFormData] = useState({
+    height: 0,
+    weight: 0,
+    age: 0,
+    bodyFat: 0,
+    goals: [] as string[],
+    equipment: [] as string[],
+    allergies: [] as string[],
+    experience: ""
+  });
+
+  useEffect(() => {
+    if (profile) {
+      setFormData(prev => ({
+        ...prev,
+        height: profile.height || prev.height,
+        weight: profile.weight || prev.weight,
+        age: profile.age || prev.age,
+        bodyFat: profile.bodyFat || prev.bodyFat,
+        goals: profile.goals || prev.goals,
+        equipment: profile.equipment || prev.equipment,
+        allergies: profile.allergies || prev.allergies,
+        experience: profile.experience || prev.experience
+      }));
+    }
+  }, [profile]);
+
   const totalSteps = 5;
+
+  const handleComplete = async () => {
+    setIsSubmitting(true);
+    try {
+      const response = await api.put('/profile', {
+        ...formData,
+        calibrated: true
+      });
+      if (response.data.success) {
+        toast.success("CALIBRATION_COMPLETE", { description: "Bio-link parameters successfully archived." });
+        await refreshProfile();
+        navigate("/dashboard");
+      }
+    } catch (err) {
+      toast.error("CALIBRATION_FAILED", { description: "Failed to upload parameters to the Nexus network." });
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const next = () => {
     if (step >= totalSteps - 1) {
-      navigate("/dashboard");
+      handleComplete();
     } else {
       setStep(s => s + 1);
     }
@@ -160,11 +232,11 @@ export default function Lab() {
   const prev = () => setStep(s => Math.max(0, s - 1));
 
   const steps = [
-    <StepBiometrics onNext={next} onPrev={prev} />,
-    <StepSelection onNext={next} onPrev={prev} title="MISSION GOALS" subtitle="SELECT_PERFORMANCE_OBJECTIVES" icon={Target} items={goals} />,
-    <StepSelection onNext={next} onPrev={prev} title="HARDWARE" subtitle="IDENTIFY_AVAILABLE_EQUIPMENT" icon={Dumbbell} items={equipment} />,
-    <StepSelection onNext={next} onPrev={prev} title="FUEL_CONSTRAINTS" subtitle="BIOLOGICAL_ALLERGIES_&_RESTRICTIONS" icon={Apple} items={allergies} />,
-    <StepExperience onNext={next} onPrev={prev} />,
+    <StepBiometrics key="bio" data={formData} updateData={(d) => setFormData(p => ({ ...p, ...d }))} onNext={next} onPrev={prev} />,
+    <StepSelection key="goals" selected={formData.goals} updateData={(d) => setFormData(p => ({ ...p, goals: d }))} onNext={next} onPrev={prev} title="MISSION GOALS" subtitle="SELECT_PERFORMANCE_OBJECTIVES" icon={Target} items={goals} />,
+    <StepSelection key="equip" selected={formData.equipment} updateData={(d) => setFormData(p => ({ ...p, equipment: d }))} onNext={next} onPrev={prev} title="HARDWARE" subtitle="IDENTIFY_AVAILABLE_EQUIPMENT" icon={Dumbbell} items={equipment} />,
+    <StepSelection key="allrg" selected={formData.allergies} updateData={(d) => setFormData(p => ({ ...p, allergies: d }))} onNext={next} onPrev={prev} title="FUEL_CONSTRAINTS" subtitle="BIOLOGICAL_ALLERGIES_&_RESTRICTIONS" icon={Apple} items={allergies} />,
+    <StepExperience key="exp" selected={formData.experience} updateData={(d) => setFormData(p => ({ ...p, experience: d }))} onNext={next} onPrev={prev} isSubmitting={isSubmitting} />,
   ];
 
   return (

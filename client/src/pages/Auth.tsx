@@ -4,20 +4,52 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Zap, Shield, Fingerprint, Lock, Mail, User, ChevronRight, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/contexts/AuthContext";
+import api from "@/lib/api";
+import { toast } from "sonner";
 
 export default function Auth() {
   const [searchParams] = useSearchParams();
   const isSignUp = searchParams.get("mode") === "signup";
   const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [codename, setCodename] = useState("");
   const navigate = useNavigate();
+  const { login: authLogin } = useAuth();
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
+
+    try {
+      if (isSignUp) {
+        const response = await api.post('/auth/register', { email, password, codename });
+        if (response.data.success) {
+          authLogin(response.data.token, response.data.user);
+          toast.success("RECRUITMENT_SUCCESSFUL", {
+            description: "Neural handshake established. Welcome to Nexus."
+          });
+          navigate("/dashboard");
+        }
+      } else {
+        const response = await api.post('/auth/login', { email, password });
+        if (response.data.success) {
+          authLogin(response.data.token, response.data.user);
+          toast.success("ACCESS_GRANTED", {
+            description: "Decryption complete. Operator online."
+          });
+          navigate("/dashboard");
+        }
+      }
+    } catch (err: any) {
+      const message = err.response?.data?.message || "Communication breach. Protocol failed.";
+      toast.error("ENCRYPTION_ERROR", {
+        description: message
+      });
+    } finally {
       setLoading(false);
-      navigate("/dashboard");
-    }, 2000);
+    }
   };
 
   return (
@@ -58,7 +90,13 @@ export default function Auth() {
                   <label className="text-[10px] font-display tracking-widest text-muted-foreground uppercase flex items-center gap-2">
                     <User className="w-3 h-3" /> Agent_Codename
                   </label>
-                  <Input placeholder="VORTEX_99" className="bg-primary/5 border-primary/10 focus:border-primary focus:ring-1 focus:ring-primary/20 h-12 font-display uppercase tracking-widest" />
+                  <Input 
+                    value={codename}
+                    onChange={(e) => setCodename(e.target.value)}
+                    placeholder="VORTEX_99" 
+                    className="bg-primary/5 border-primary/10 focus:border-primary focus:ring-1 focus:ring-primary/20 h-12 font-display uppercase tracking-widest" 
+                    required={isSignUp}
+                  />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -67,14 +105,28 @@ export default function Auth() {
               <label className="text-[10px] font-display tracking-widest text-muted-foreground uppercase flex items-center gap-2">
                 <Mail className="w-3 h-3" /> Neural_Address
               </label>
-              <Input type="email" placeholder="OPERATOR@NEXUS.OS" className="bg-primary/5 border-primary/10 focus:border-primary focus:ring-1 focus:ring-primary/20 h-12 font-display uppercase tracking-widest" />
+              <Input 
+                type="email" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="OPERATOR@NEXUS.OS" 
+                className="bg-primary/5 border-primary/10 focus:border-primary focus:ring-1 focus:ring-primary/20 h-12 font-display uppercase tracking-widest" 
+                required 
+              />
             </div>
 
             <div className="space-y-2">
               <label className="text-[10px] font-display tracking-widest text-muted-foreground uppercase flex items-center gap-2">
                 <Lock className="w-3 h-3" /> Access_Key
               </label>
-              <Input type="password" placeholder="••••••••" className="bg-primary/5 border-primary/10 focus:border-primary focus:ring-1 focus:ring-primary/20 h-12 font-display tracking-widest" />
+              <Input 
+                type="password" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••" 
+                className="bg-primary/5 border-primary/10 focus:border-primary focus:ring-1 focus:ring-primary/20 h-12 font-display tracking-widest" 
+                required 
+              />
             </div>
 
             <Button disabled={loading} className={`w-full py-8 font-display tracking-[0.3em] text-[10px] transition-all relative overflow-hidden group ${
